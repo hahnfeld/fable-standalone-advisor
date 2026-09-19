@@ -3,8 +3,12 @@
 Consult the `advisor` session, with a written brief, when: decomposing an ambiguous or
 multi-module task; choosing between approaches with long-term consequences; a fix for the same
 symptom has failed twice; you're about to work around a problem instead of fixing it; or the
-task as specified seems wrong. Do not consult for code review, routine edits, or to confirm
-finished work.
+task as specified seems wrong.
+
+Timing counts as much as the trigger. Consult before you commit to an approach, not once you
+have built on it, and again before you declare a multi-step task done. Orientation — finding
+files, reading what is there — is not committing; writing, editing and declaring an answer are.
+Don't consult for routine code review or a diff you could check yourself.
 
 Send the brief with SendMessage to `advisor`. A brief = goal, constraints, what you tried and
 observed, file/diff pointers, and the specific question.
