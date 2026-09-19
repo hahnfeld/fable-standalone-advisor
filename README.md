@@ -165,6 +165,7 @@ Sources: [Consumer Terms](https://www.anthropic.com/legal/consumer-terms) ·
 ## Files
 
 ```
+LICENSE                          MIT
 run                              launcher: ./run advisor | coder | doctor
 advisor/.claude/settings.json    model, effort, accepts messages
 advisor/.claude/agents/advisor.md  the advisor's prompt and read-only tool limits
@@ -176,3 +177,9 @@ coder/.claude/CLAUDE.md          when and how to consult the advisor
 
 Each role's config directory also accumulates its login, transcripts and caches at runtime;
 `.gitignore` keeps all of that out of the repo.
+
+## License
+
+MIT — see [LICENSE](LICENSE). It covers this package: the launcher, the prompts and the docs.
+Claude Code itself, and whatever model provider you point each session at, stay under their own
+terms; see [Subscription and provider terms](#subscription-and-provider-terms) above.
