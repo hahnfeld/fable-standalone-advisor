@@ -1,5 +1,4 @@
 {
-  "crossSessionInbound": "accept",
   "env": {
     "ANTHROPIC_BASE_URL": "https://api.minimax.io/anthropic",
     "ANTHROPIC_MODEL": "MiniMax-M3",
@@ -7,5 +6,7 @@
     "ANTHROPIC_DEFAULT_SONNET_MODEL": "MiniMax-M3",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL": "MiniMax-M3",
     "CLAUDE_CODE_MAX_CONTEXT_TOKENS": "1000000"
-  }
+  },
+  "theme": "light-daltonized",
+  "crossSessionInbound": "accept"
 }

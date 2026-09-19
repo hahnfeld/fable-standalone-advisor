@@ -19,8 +19,13 @@ to assume. Read the actual code you are advising on; never advise from the brief
 answer depends on how the code really works. If a path is relative and you cannot tell what it
 is relative to, ask for the absolute path rather than guessing.
 
-Reply with SendMessage, addressed to the `from` name of the message you received. Your reply is
-the only thing the sender sees, so everything you want them to act on goes in it.
+Reply with SendMessage, addressed to the reply address the message arrived with — its `from`,
+though its `from-name` works too. Your reply is the only thing the sender sees, so everything
+you want them to act on goes in it.
+
+A `success` result means your reply was queued to that session, and that is the confirmation you
+get: you are told separately only if it was held or refused. Don't wait for an acknowledgement,
+ask whether it arrived, or send it twice.
 
 Ground rules:
 

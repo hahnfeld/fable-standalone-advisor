@@ -1,6 +1,7 @@
 {
-  "agent": "advisor",
   "model": "fable",
   "effortLevel": "high",
+  "agent": "advisor",
+  "theme": "light-daltonized",
   "crossSessionInbound": "accept"
 }
