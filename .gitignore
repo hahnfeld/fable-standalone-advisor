@@ -1,0 +1,17 @@
+# Secrets
+.env
+
+# Shared peer registry (runtime state)
+.sessions/
+
+# Claude Code's own scaffolding for anyone working *on* this repo
+/.claude/
+
+# Each role's config dir also holds its login, transcripts and caches at runtime.
+# Track only the files that define the setup.
+advisor/.claude/*
+coder/.claude/*
+!advisor/.claude/settings.json
+!advisor/.claude/agents/
+!coder/.claude/settings.json
+!coder/.claude/CLAUDE.md

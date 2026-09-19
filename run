@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+# Launch one of this package's two Claude Code sessions.
+set -euo pipefail
+
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+registry="$repo/.sessions"
+min_version="2.1.224"          # first release with crossSessionInbound
+
+usage() {
+  cat <<'EOF'
+usage: run <advisor|coder|doctor> [claude args...]
+
+  advisor   Fable on an Anthropic subscription, running as the `advisor` agent.
+  coder     MiniMax M3 on an API key, in the directory you run it from.
+  doctor    Show whether the two sessions can currently discover each other.
+
+Start both from the project you're working on: a session can only read files
+under the directory it was started in. Each role keeps its own config in
+<role>/.claude — its own login, model and settings.
+EOF
+}
+
+# Sessions discover each other by reading <CLAUDE_CONFIG_DIR>/sessions. Two config
+# dirs means two registries and no discovery, so point both at one shared directory.
+link_registry() {
+  mkdir -p -m 700 "$registry" "$CLAUDE_CONFIG_DIR"
+  local link="$CLAUDE_CONFIG_DIR/sessions" rec pid
+  if [ -e "$link" ] && [ ! -L "$link" ]; then
+    # A real directory here means claude was once started on this config dir without
+    # `run`. Drop the leftovers of sessions that have since exited, then link.
+    shopt -s nullglob
+    for rec in "$link"/*.json; do
+      pid="$(basename "$rec" .json)"
+      kill -0 "$pid" 2>/dev/null || rm -f "$rec" "${rec%.json}".*.key
+    done
+    rmdir "$link" 2>/dev/null || {
+      echo "run: $link is a real directory with a live session in it. Quit that session" >&2
+      echo "     (or remove the directory) and start this one again." >&2
+      exit 1
+    }
+  fi
+  ln -sfn "$registry" "$link"
+}
+
+# Anything inherited from the shell (e.g. a provider switcher sourced in ~/.zprofile)
+# would override the role's settings.json, so start from a clean slate either way.
+clear_provider_env() {
+  unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_API_KEY ANTHROPIC_MODEL \
+        ANTHROPIC_SMALL_FAST_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL \
+        ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL \
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
+}
+
+# Live sessions in the shared registry, one per line: name<TAB>pid<TAB>cwd
+live_sessions() {
+  shopt -s nullglob
+  local rec pid
+  for rec in "$registry"/*.json; do
+    pid="$(basename "$rec" .json)"
+    kill -0 "$pid" 2>/dev/null || continue
+    printf '%s\t%s\t%s\n' \
+      "$(sed -n 's/.*"name": *"\([^"]*\)".*/\1/p' "$rec")" "$pid" \
+      "$(sed -n 's/.*"cwd": *"\([^"]*\)".*/\1/p' "$rec")"
+  done
+}
+
+check_version() {
+  local have
+  have="$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
+  [ -n "$have" ] || return 0     # unknown build: don't stand in the way
+  if [ "$(printf '%s\n%s\n' "$min_version" "$have" | sort -V | head -1)" != "$min_version" ]; then
+    echo "run: Claude Code $have is too old — cross-session messaging needs $min_version or newer." >&2
+    exit 1
+  fi
+}
+
+# A session started with -p/--print or --bare never binds a message inbox, and one
+# without a terminal can't be messaged either: the advisor would sit there unreachable.
+require_interactive() {
+  local a
+  for a in "$@"; do
+    case "$a" in
+      -p|--print|--bare)
+        echo "run: the advisor must run interactively — a $a session never binds a message" >&2
+        echo "     inbox, so the coder would never reach it. Start it in its own terminal." >&2
+        exit 1 ;;
+    esac
+  done
+  if [ ! -t 0 ] || [ ! -t 1 ]; then
+    echo "run: the advisor needs a terminal (no TTY here). A non-interactive session can't" >&2
+    echo "     receive briefs. Start it in its own terminal, not from a script or pipe." >&2
+    exit 1
+  fi
+}
+
+# Catch the two setups that look fine but silently don't work.
+warn_peers() {
+  local me="$1" name pid cwd
+  while IFS=$'\t' read -r name pid cwd; do
+    [ -n "$name" ] || continue
+    if [ "$name" = "$me" ]; then
+      echo "run: warning: '$me' is already running (pid $pid). This session will be named" >&2
+      echo "     something else, and messages addressed to '$me' will go to the other one." >&2
+    elif [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
+      echo "run: warning: '$name' is running in $cwd, but you are starting here:" >&2
+      echo "     $PWD. They can't read each other's files; use --add-dir if that's deliberate." >&2
+    fi
+  done < <(live_sessions)
+}
+
+role="${1:-}"
+[ $# -gt 0 ] && shift
+
+case "$role" in
+  advisor)
+    check_version
+    require_interactive "$@"
+    export CLAUDE_CONFIG_DIR="$repo/advisor/.claude"
+    link_registry
+    warn_peers advisor
+    clear_provider_env   # no provider vars: use this config dir's own subscription login
+    exec claude --agent advisor --name advisor "$@"
+    ;;
+
+  coder)
+    check_version
+    for a in "$@"; do case "$a" in
+      -p|--print) echo "run: note: a $a session can't receive replies; the advisor's answer" >&2
+                  echo "     would be lost. Fine for work that needs no consult." >&2 ;;
+    esac; done
+    export CLAUDE_CONFIG_DIR="$repo/coder/.claude"
+    link_registry
+    warn_peers coder
+    clear_provider_env
+    if [ -f "$repo/.env" ]; then set -a; . "$repo/.env"; set +a; fi
+    : "${MINIMAX_API_KEY:?not set — copy .env.example to .env and fill it in}"
+    # Base URL and model live in coder/.claude/settings.json; only the key comes from here.
+    export ANTHROPIC_AUTH_TOKEN="$MINIMAX_API_KEY"
+    exec claude --name coder "$@"
+    ;;
+
+  doctor)
+    echo "shared registry: $registry"
+    for r in advisor coder; do
+      link="$repo/$r/.claude/sessions"
+      if [ -L "$link" ]; then
+        printf '  %-7s sessions -> %s\n' "$r" "$(readlink "$link")"
+      else
+        printf '  %-7s sessions NOT LINKED (start it once with: ./run %s)\n' "$r" "$r"
+      fi
+    done
+    echo "live sessions both can see:"
+    live=0
+    while IFS=$'\t' read -r name pid cwd; do
+      [ -n "$name" ] || continue
+      printf '  %-10s pid %-7s %s\n' "$name" "$pid" "$cwd"
+      live=1
+    done < <(live_sessions)
+    [ "$live" = 1 ] || echo "  (none running)"
+    ;;
+
+  ""|-h|--help|help) usage ;;
+  *) usage >&2; exit 1 ;;
+esac
