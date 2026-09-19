@@ -66,9 +66,15 @@ after the role name goes straight to `claude`:
   derived name, `/rename advisor` fixes it.
 - **Both sessions accept messages.** `"crossSessionInbound": "accept"` in each
   `settings.json` — the advisor to receive briefs, the coder to receive replies.
-- **The advisor is read-only.** `advisor/.claude/agents/advisor.md` sets
-  `disallowedTools: Write, Edit, NotebookEdit`, and its prompt tells it to advise, not to act.
-  Acting on the advice is the coder's job.
+- **The advisor is read-only, three times over.** Its prompt tells it to advise rather than act,
+  `advisor/.claude/agents/advisor.md` sets `disallowedTools: Write, Edit, NotebookEdit`, and its
+  `settings.json` denies those tools outright plus the `git` subcommands and `rm` that would
+  change state through Bash. Acting on the advice is the coder's job.
+- **The advisor runs in auto mode**, because it's the session you aren't watching: a permission
+  prompt there would stall the coder waiting on an answer nobody is there to approve. The deny
+  rules above are what keep that safe — they can't be overridden by a prompt. (Auto mode makes
+  classifier requests; on an Anthropic subscription those aren't billed as normal usage, but
+  they are if you point the advisor at a third-party gateway.)
 - **Shared discovery, separate everything else.** Sessions find each other through files in
   `<CLAUDE_CONFIG_DIR>/sessions/`, so two config directories would never see one another. `run`
   points both at one shared `.sessions/` directory with a symlink. This is the one piece that
